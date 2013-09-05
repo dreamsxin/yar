@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2011 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
-  |          Zhenyu  Zhang <engineer.zzy@gmail.com>                      |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -25,7 +25,9 @@
 
 #include "php.h"
 #include "SAPI.h"
+#include "ext/standard/head.h" /* for php_header */
 #include "php_yar.h"
+#include "Zend/zend_exceptions.h"
 #include "yar_exception.h"
 #include "yar_packager.h"
 #include "yar_server.h"
@@ -55,7 +57,9 @@ ZEND_END_ARG_INFO()
 	"<html>\n" \
 	" <head>\n" \
 	"  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n" \
-	"  <title>Yar RPC Server</title>\n" \
+	"  <title>%s - Yar Server</title>\n"
+
+#define HTML_MARKUP_CSS \
 	"  <style>\n" \
 	"   body { margin: 0; font:14px/20px Verdana, Arial, sans-serif; color: #333; background: #f8f8f8;}\n" \
 	"   h1, h2, pre { margin: 0; padding: 0;}\n" \
@@ -65,7 +69,9 @@ ZEND_END_ARG_INFO()
 	"   .api-info { padding: 10px 0; margin-left: 20px; }\n" \
 	"   .api-block { margin-left: 40px;}\n" \
 	"   h2 u { font-size:20px;text-decoration:none;padding:10px; }\n" \
-	"  </style>\n" \
+	"  </style>\n"
+
+#define HTML_MARKUP_SCRIPT  \
 	"  <script>\n" \
 	"   function _t(elem) {\n" \
 	"    var block = elem.nextSibling;\n" \
@@ -78,17 +84,18 @@ ZEND_END_ARG_INFO()
 	"    }\n" \
 	"    var isHidden = block.style.display == 'none';\n" \
 	"    block.style.display = isHidden ? '' : 'none';\n" \
-	"    info.innerHTML = isHidden ? '+'  : '-';\n" \
+	"    info.innerHTML = isHidden ? '-'  : '+';\n" \
 	"   }\n" \
 	"  </script>\n" \
 	" </head>\n" \
-	" <body>\n"
+	" <body>\n" \
+	" <!-- powered by yar-" YAR_VERSION " -->\n"
 
 #define HTML_MARKUP_TITLE \
-	" <h1>%s</h1>"
+	" <h1>Yar Server: %s</h1>"
 
 #define HTML_MARKUP_ENTRY \
-	" <h2 onclick=\"_t(this)\"><u>-</u>%s</h2>\n" \
+	" <h2 onclick=\"_t(this)\"><u>+</u>%s</h2>\n" \
 	" <div class=\"api-block\" style=\"display:none\">\n" \
     " <pre style=\"white-space:pre-line\">%s</pre>\n" \
 	" </div>\n" 
@@ -297,19 +304,19 @@ static char * php_yar_get_function_declaration(zend_function *fptr TSRMLS_DC) /*
 
 static int php_yar_print_info(void *ptr, void *argument TSRMLS_DC) /* {{{ */ {
     zend_function *f = ptr;
-    zend_class_entry *ce = argument;
 
-    if (f->common.fn_flags & ZEND_ACC_PUBLIC) {
+    if (f->common.fn_flags & ZEND_ACC_PUBLIC 
+			&& f->common.function_name && *(f->common.function_name) != '_') {
         char *prototype = NULL;
 		if ((prototype = php_yar_get_function_declaration(f TSRMLS_CC))) {
-			char buf[1024], *doc_comment = NULL;
+			char *buf, *doc_comment = NULL;
 			if (f->type == ZEND_USER_FUNCTION) {
 				doc_comment = (char *)f->op_array.doc_comment;
 			}
-			snprintf(buf, 1024, HTML_MARKUP_ENTRY, prototype, doc_comment? doc_comment : "");
+			spprintf(&buf, 0, HTML_MARKUP_ENTRY, prototype, doc_comment? doc_comment : "");
 			efree(prototype);
-
 			PHPWRITE(buf, strlen(buf));
+            efree(buf);
 		}
     }
 
@@ -324,7 +331,7 @@ static void php_yar_server_response_header(size_t content_lenth, void *packager_
 	ctr.line = header_line;
 	sapi_header_op(SAPI_HEADER_REPLACE, &ctr TSRMLS_CC);
 
-	ctr.line_len = snprintf(header_line, sizeof(header_line), "Content-Type: text/plain");
+	ctr.line_len = snprintf(header_line, sizeof(header_line), "Content-Type: %s", YAR_G(content_type));
 	ctr.line = header_line;
 	sapi_header_op(SAPI_HEADER_REPLACE, &ctr TSRMLS_CC);
 
@@ -332,9 +339,11 @@ static void php_yar_server_response_header(size_t content_lenth, void *packager_
 	ctr.line = header_line;
 	sapi_header_op(SAPI_HEADER_REPLACE, &ctr TSRMLS_CC);
 
-	ctr.line_len = snprintf(header_line, sizeof(header_line), "Connection: close");
+	/*
+	ctr.line_len = snprintf(header_line, sizeof(header_line), "Connection: Keep-Alive");
 	ctr.line = header_line;
 	sapi_header_op(SAPI_HEADER_REPLACE, &ctr TSRMLS_CC);
+	*/
 
 	php_header(TSRMLS_C);
 
@@ -342,7 +351,7 @@ static void php_yar_server_response_header(size_t content_lenth, void *packager_
 } /* }}} */
 
 static void php_yar_server_response(yar_request_t *request, yar_response_t *response TSRMLS_DC) /* {{{ */ {
-	zval ret, *tmp;
+	zval ret;
 	char *payload, *err_msg;
 	size_t payload_len;
 	yar_header_t header = {0};
@@ -364,7 +373,7 @@ static void php_yar_server_response(yar_request_t *request, yar_response_t *resp
 		add_assoc_zval_ex(&ret, ZEND_STRS("e"), response->err);
 	}
 
-    if (!(payload_len = php_yar_packager_pack(&ret, &payload, &err_msg TSRMLS_CC))) {
+    if (!(payload_len = php_yar_packager_pack(NULL, &ret, &payload, &err_msg TSRMLS_CC))) {
 		zval_dtor(&ret);
 		php_yar_error(response, YAR_ERR_PACKAGER TSRMLS_CC, "%s", err_msg);
 		efree(err_msg);
@@ -373,10 +382,9 @@ static void php_yar_server_response(yar_request_t *request, yar_response_t *resp
 	zval_dtor(&ret);
 
 	php_yar_protocol_render(&header, request->id, "PHP Yar Server", NULL, payload_len, 0 TSRMLS_CC);
-	if (YAR_G(debug)) {
-		php_yar_debug_server("%ld: server response: packager '%s', len '%ld', content '%s'",
-				request->id, payload, payload_len - 8, payload + 8);
-	}
+
+	DEBUG_S("%ld: server response: packager '%s', len '%ld', content '%.32s'",
+			request->id, payload, payload_len - 8, payload + 8);
 
 	php_yar_server_response_header(sizeof(yar_header_t) + payload_len, payload TSRMLS_CC);
 	PHPWRITE((char *)&header, sizeof(yar_header_t));
@@ -390,10 +398,10 @@ static void php_yar_server_response(yar_request_t *request, yar_response_t *resp
 } /* }}} */
 
 static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
-	char *payload, *err_msg;
+	char *payload, *err_msg, method[256];
 	size_t payload_len;
 	zend_bool bailout = 0;
-	zval *post_data = NULL, output;
+	zval *post_data = NULL, output, func;
 	zend_class_entry *ce;
 	yar_response_t *response;
 	yar_request_t  *request = NULL;
@@ -406,19 +414,17 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 
 	payload = SG(request_info).raw_post_data;
 	payload_len = SG(request_info).raw_post_data_length;
-	if (!(header = php_yar_protocol_parse(&payload, &payload_len, &err_msg TSRMLS_CC))) {
-		php_yar_error(response, YAR_ERR_PACKAGER TSRMLS_CC, err_msg);
-		if (YAR_G(debug)) {
-			php_yar_debug_server("0: an malformed request '%s'", payload);
-		}
-		efree(err_msg);
+	if (!(header = php_yar_protocol_parse(payload TSRMLS_CC))) {
+		php_yar_error(response, YAR_ERR_PACKAGER TSRMLS_CC, "malformed request header '%.10s'", payload TSRMLS_CC);
+		DEBUG_S("0: malformed request '%s'", payload);
 		goto response_no_output;
 	}
 
-	if (YAR_G(debug)) {
-		php_yar_debug_server("%ld: accpect rpc request form '%s'",
-				header->id, header->provider? (char *)header->provider : "Yar PHP " YAR_VERSION);
-	}
+	DEBUG_S("%ld: accpect rpc request form '%s'",
+			header->id, header->provider? (char *)header->provider : "Yar PHP " YAR_VERSION);
+
+	payload += sizeof(yar_header_t);
+	payload_len -= sizeof(yar_header_t);
 
 	if (!(post_data = php_yar_packager_unpack(payload, payload_len, &err_msg TSRMLS_CC))) {
         php_yar_error(response, YAR_ERR_PACKAGER TSRMLS_CC, err_msg);
@@ -426,11 +432,13 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 		goto response_no_output;
 	}
 
-	request = php_yar_request_instance(post_data TSRMLS_CC);
+	request = php_yar_request_unpack(post_data TSRMLS_CC);
 	zval_ptr_dtor(&post_data);
 	ce = Z_OBJCE_P(obj);
 
-	if (!php_yar_request_valid(request, response TSRMLS_CC)) {
+	if (!php_yar_request_valid(request, response, &err_msg TSRMLS_CC)) {
+		php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "%s", err_msg);
+		efree(err_msg);
 		goto response_no_output;
 	}
 
@@ -444,8 +452,9 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 	}
 
 	ce = Z_OBJCE_P(obj);
-	if (!zend_hash_exists(&ce->function_table, Z_STRVAL_P(request->method), Z_STRLEN_P(request->method) + 1)) {
-		php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "call to undefined api %s::%s()", ce->name, Z_STRVAL_P(request->method));
+	zend_str_tolower_copy(method, request->method, request->mlen);
+	if (!zend_hash_exists(&ce->function_table, method, strlen(method) + 1)) {
+		php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "call to undefined api %s::%s()", ce->name, request->method);
 		goto response;
 	}
 
@@ -456,19 +465,19 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 		HashTable *func_params_ht;
 
 		INIT_ZVAL(output);
-
-		if (zend_hash_exists(&ce->function_table, ZEND_STRS("_auth"))) {
-			zval *provider, *token, func;
+#if 0 
+		if (zend_hash_exists(&ce->function_table, ZEND_STRS("__auth"))) {
+			zval *provider, *token;
 			MAKE_STD_ZVAL(provider);
 			MAKE_STD_ZVAL(token);
 			if (header->provider) {
-				ZVAL_STRING(provider, header->provider, 1);
+				ZVAL_STRING(provider, (char *)header->provider, 1);
 			} else {
 				ZVAL_NULL(provider);
 			}
 
 			if (header->token) {
-				ZVAL_STRING(token, header->token, 1);
+				ZVAL_STRING(token, (char *)header->token, 1);
 			} else {
 				ZVAL_NULL(token);
 			}
@@ -477,7 +486,7 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 			func_params[0] = &provider;
 			func_params[1] = &token;
 
-			ZVAL_STRINGL(&func, "_auth", sizeof("_auth") - 1, 0);
+			ZVAL_STRINGL(&func, "__auth", sizeof("__auth") - 1, 0);
 			if (call_user_function_ex(NULL, &obj, &func, &retval_ptr, 2, func_params, 0, NULL TSRMLS_CC) != SUCCESS) {
 				efree(func_params);
 				zval_ptr_dtor(&token);
@@ -494,13 +503,14 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 			if (retval_ptr) {
                if (Z_TYPE_P(retval_ptr) == IS_BOOL && !Z_BVAL_P(retval_ptr)) {
 				   zval_ptr_dtor(&retval_ptr);
-				   php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "%s::_auth() return false", ce->name);
+				   php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "%s::__auth() return false", ce->name);
 				   goto response;
 			   }
 			   zval_ptr_dtor(&retval_ptr);
 			   retval_ptr = NULL;
 			}
 		}
+#endif
 
 		func_params_ht = Z_ARRVAL_P(request->parameters);
 		count = zend_hash_num_elements(func_params_ht);
@@ -517,11 +527,12 @@ static void php_yar_server_handle(zval *obj TSRMLS_DC) /* {{{ */ {
 			func_params = NULL;
 		}
 
-		if (call_user_function_ex(NULL, &obj, request->method, &retval_ptr, count, func_params, 0, NULL TSRMLS_CC) != SUCCESS) {
+		ZVAL_STRINGL(&func, request->method, request->mlen, 0);
+		if (call_user_function_ex(NULL, &obj, &func, &retval_ptr, count, func_params, 0, NULL TSRMLS_CC) != SUCCESS) {
 			if (func_params) {
 				efree(func_params);
 			}
-		    php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "call to api %s::%s() failed", ce->name, Z_STRVAL_P(request->method));
+		    php_yar_error(response, YAR_ERR_REQUEST TSRMLS_CC, "call to api %s::%s() failed", ce->name, request->method);
 			goto response;
 		}
 
@@ -558,8 +569,8 @@ response:
 
 response_no_output:
 	php_yar_server_response(request, response TSRMLS_CC);
-	php_yar_request_dtor(request TSRMLS_CC);
-	php_yar_response_dtor(response TSRMLS_CC);
+	php_yar_request_destroy(request TSRMLS_CC);
+	php_yar_response_destroy(response TSRMLS_CC);
 
 	if (bailout) {
 		zend_bailout();
@@ -572,7 +583,11 @@ static void php_yar_server_info(zval *obj TSRMLS_DC) /* {{{ */ {
 	char buf[1024];
 	zend_class_entry *ce = Z_OBJCE_P(obj);
 
-    PHPWRITE(HTML_MARKUP_HEADER, sizeof(HTML_MARKUP_HEADER) - 1);
+	snprintf(buf, sizeof(buf), HTML_MARKUP_HEADER, ce->name);
+	PHPWRITE(buf, strlen(buf));
+
+	PHPWRITE(HTML_MARKUP_CSS, sizeof(HTML_MARKUP_CSS) - 1);
+	PHPWRITE(HTML_MARKUP_SCRIPT, sizeof(HTML_MARKUP_SCRIPT) - 1);
 
 	snprintf(buf, sizeof(buf), HTML_MARKUP_TITLE, ce->name);
 	PHPWRITE(buf, strlen(buf));
@@ -600,9 +615,6 @@ PHP_METHOD(yar_server, __construct) {
    start service */
 PHP_METHOD(yar_server, handle)
 {
-	char *buf;
-	int buf_len;
-
     if (SG(headers_sent)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "headers already has been sent");
         RETURN_FALSE;
@@ -618,8 +630,13 @@ PHP_METHOD(yar_server, handle)
 
 		method = SG(request_info).request_method;
 		if (!method || strncasecmp(method, "POST", 4)) {
-			php_yar_server_info(executor TSRMLS_CC);
-            RETURN_TRUE;
+			if (YAR_G(expose_info)) {
+				php_yar_server_info(executor TSRMLS_CC);
+                RETURN_TRUE;
+			} else {
+				zend_throw_exception(yar_server_exception_ce, "server info is not allowed to access", YAR_ERR_FORBIDDEN TSRMLS_CC);
+				return;
+			}
 		}
 
 		php_yar_server_handle(executor TSRMLS_CC);

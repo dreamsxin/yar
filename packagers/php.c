@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2011 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
-  |          Zhenyu  Zhang <engineer.zzy@gmail.com>                      |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -29,7 +29,6 @@
 #include "ext/standard/php_var.h" /* for serialize */
 
 int php_yar_packager_php_pack(yar_packager_t *self, zval *pzval, smart_str *buf, char **msg TSRMLS_DC) /* {{{ */ {
-	zval **struc;
 	php_serialize_data_t var_hash;
 
 	PHP_VAR_SERIALIZE_INIT(var_hash);
