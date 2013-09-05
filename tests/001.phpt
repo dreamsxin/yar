@@ -1,7 +1,13 @@
 --TEST--
 Check for yar presence
 --SKIPIF--
-<?php if (!extension_loaded("yar")) print "skip"; ?>
+<?php 
+if (!extension_loaded("yar")) {
+    print "skip";
+}
+?>
+--INI--
+yar.packager=php
 --FILE--
 <?php 
 echo "yar extension is available";

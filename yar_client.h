@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2011 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
-  |          Zhenyu  Zhang <engineer.zzy@gmail.com>                      |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -26,6 +26,7 @@
 #define YAR_CLIENT_PROTOCOL_TCP   2
 #define YAR_CLIENT_PROTOCOL_UDP   3
 #define YAR_CLIENT_PROTOCOL_UNIX  4
+
 
 YAR_STARTUP_FUNCTION(client);
 YAR_SHUTDOWN_FUNCTION(client);

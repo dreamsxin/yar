@@ -1,5 +1,5 @@
 --TEST--
-Check for yar client
+Check for yar client with output by server
 --SKIPIF--
 <?php 
 if (!extension_loaded("yar")) {
@@ -7,14 +7,13 @@ if (!extension_loaded("yar")) {
 }
 include "skip.inc";
 ?>
---INI--
-yar.packager=php
-yar.debug=0
 --FILE--
 <?php 
 include "yar.inc";
+
 $client = new Yar_Client(YAR_API_ADDRESS);
-var_dump($client->normal(1234, 3.8));
-?>
+
+var_dump($client->output());
+
 --EXPECT--
-float(3.8)
+outputstring(7) "success"

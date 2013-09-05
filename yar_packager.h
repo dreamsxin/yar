@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2011 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
-  |          Zhenyu  Zhang <engineer.zzy@gmail.com>                      |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -24,9 +24,9 @@
 
 #include "ext/standard/php_smart_str.h"
 
-#define	YAR_PACKAGER_PHP      1
-#define	YAR_PACKAGER_JSON     2
-#define	YAR_PACKAGER_MESGPACK 3
+#define	YAR_PACKAGER_PHP      "PHP"
+#define	YAR_PACKAGER_JSON     "JSON"
+#define	YAR_PACKAGER_MSGPACK "MSGPACK"
 
 #define YAR_PACKAGER_BUFFER_SIZE  5120
 
@@ -48,8 +48,12 @@ extern yar_packager_t yar_packager_json;
 extern yar_packager_t yar_packager_msgpack;
 #endif
 
-size_t php_yar_packager_pack(zval *pzval, char **payload, char **msg TSRMLS_DC);
+size_t php_yar_packager_pack(char *packager_name, zval *pzval, char **payload, char **msg TSRMLS_DC);
 zval * php_yar_packager_unpack(char *content, size_t len, char **msg TSRMLS_DC);
+
+YAR_STARTUP_FUNCTION(packager);
+YAR_ACTIVATE_FUNCTION(packager);
+YAR_SHUTDOWN_FUNCTION(packager);
 
 #endif	/* PHP_YAR_PACKAGER_H */
 

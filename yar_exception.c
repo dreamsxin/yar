@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | Yar - Light, concurrent RPC framework                                |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2011 The PHP Group                                |
+  | Copyright (c) 2012-2013 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -13,7 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author:  Xinchen Hui   <laruence@php.net>                            |
-  |          Zhenyu  Zhang <engineer.zzy@gmail.com>                      |
+  |          Zhenyu  Zhang <zhangzhenyu@php.net>                         |
   +----------------------------------------------------------------------+
 */
 
@@ -70,9 +70,7 @@ void php_yar_error_ex(yar_response_t *response, int type TSRMLS_DC, const char *
 
 	len = vspprintf(&msg, 0, format, args);
 	php_yar_response_set_error(response, type, msg, len TSRMLS_CC);
-	/* intentionally missed
 	efree(msg);
-	*/
 
 	return;
 } /* }}} */
@@ -151,6 +149,14 @@ YAR_STARTUP_FUNCTION(exception) /* {{{ */ {
 
     INIT_CLASS_ENTRY(ce, "Yar_Client_Protocol_Exception", NULL);
 	yar_client_protocol_exception_ce = zend_register_internal_class_ex(&ce, yar_client_exception_ce, NULL TSRMLS_CC);
+
+	REGISTER_LONG_CONSTANT("YAR_ERR_OKEY", YAR_ERR_OKEY, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_OUTPUT", YAR_ERR_OUTPUT, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_TRANSPORT", YAR_ERR_TRANSPORT, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_REQUEST", YAR_ERR_REQUEST, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_PROTOCOL", YAR_ERR_PROTOCOL, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_PACKAGER", YAR_ERR_EXCEPTION, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("YAR_ERR_EXCEPTION", YAR_ERR_EXCEPTION, CONST_CS|CONST_PERSISTENT);
 
 	return SUCCESS;
 } /* }}} */
